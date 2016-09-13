@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<!--
+    Copyright (c) 2012-2016 Adobe Systems Incorporated. All rights reserved.
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+-->
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width" />
+    <!-- This is a wide open CSP declaration. To lock this down for production, see below. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src *; style-src 'self' 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'">
+    <!-- Good default declaration:
+    * gap: is required only on iOS (when using UIWebView) and is needed for JS->native communication
+    * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
+    * Disables use of eval() and inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
+        * Enable inline JS: add 'unsafe-inline' to default-src
+        * Enable eval(): add 'unsafe-eval' to default-src
+    * Create your own at http://cspisawesome.com
+    -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: 'unsafe-inline' https://ssl.gstatic.com; style-src 'self' 'unsafe-inline'; media-src *" /> -->
+
+    <link rel="stylesheet" type="text/css" href="css/index.css" />
+    <title>Hello World</title>
+</head>
+
+<body>
+    <div class="app">
+        <h1>NGUYEN THAI SON</h1>
+        <div id="deviceready" class="blink">
+            <p class="event listening">Connecting to Device</p>
+            <p class="event received">Device is Ready</p>
+        </div>
+    </div>
+    <script type="text/javascript" src="cordova.js"></script><script type="text/javascript" src="http://192.168.1.53:3000/socket.io/socket.io.js"></script><script type="text/javascript">//
+// Reload the app if server detects local change
+//
+(function() {
+    var host = 'http://192.168.1.53:3000',
+        url = host + '/__api__/autoreload?appID=e5fe49a366c85afc95f32f7bf799c80f',
+        timer;
+
+    function postStatus() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (this.readyState === 4 && /^[2]/.test(this.status)) {
+            }
+        };
+        xhr.send();
+    }
+
+    function checkForReload() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (this.readyState === 4 && /^[2]/.test(this.status)) {
+                var response = JSON.parse(this.responseText);
+                if (response.content.outdated) {
+                    postStatus();
+
+                    // this is ensure we don't duplicate a download when we first launch the app on device
+                    if(response.content.lastUpdated !== 0){
+                        window.clearTimeout(timer);
+                        window.phonegap.app.config.load(function(config){
+                            window.phonegap.app.downloadZip({
+                                address: 'http://' + config.address,
+                                update: true
+                            });
+                        });
+                    }
+                } else if (response.projectChanged) {
+                    window.phonegap.app.config.load(function(config) {
+                        window.phonegap.app.downloadZip({
+                            address: 'http://' + config.address,
+                            update: false
+                        });
+                    });
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    document.addEventListener("deviceready", function(){
+        timer = setInterval(checkForReload, 1000 * 3);
+    }, false);
+})(window);
+</script>
+<script type="text/javascript">(function(window) {
+    var socket = io('http://192.168.1.53:3000');
+    var previousConsole = window.console || {};
+    window.console = {
+        log:function(){
+            if(previousConsole.log) {
+                previousConsole.log.apply(previousConsole, arguments);
+            }
+            socket.emit('console','log', Array.prototype.slice.call(arguments).join(' '));
+        },
+        warn:function(){
+            if(previousConsole.warn) {
+                previousConsole.warn.apply(previousConsole, arguments);
+            }
+            socket.emit('console','warn', Array.prototype.slice.call(arguments).join(' '));
+        },
+        error:function(){
+            if(previousConsole.error) {
+                previousConsole.error.apply(previousConsole, arguments);
+            }
+            socket.emit('console','error', Array.prototype.slice.call(arguments).join(' '));
+        },
+        assert:function(assertion) {
+            if(previousConsole.assert) {
+                previousConsole.assert.apply(previousConsole, arguments);
+            }
+            if(assertion){
+                socket.emit('console','assert', Array.prototype.slice.call(arguments, 1).join(' '));
+            }
+        }
+    };
+})(window);
+</script>
+<script type="text/javascript">(function() {
+
+    /*!
+     * Create export namespace.
+     */
+
+    if (!window.phonegap) window.phonegap = {};
+    if (!window.phonegap.app) window.phonegap.app = {};
+
+    /*!
+     * Configuration.
+     */
+
+    if (!window.phonegap.app.config) window.phonegap.app.config = {};
+
+    /**
+     * Load Configuration.
+     *
+     * Options:
+     *   - `callback` {Function} is triggered on completion
+     *     - `data` {Object} is the configuration data
+     */
+
+    window.phonegap.app.config.load = function(callback) {
+        readFile('config.json', function(e, text) {
+            config = parseAsJSON(text);
+
+            // load defaults
+            config.address = config.address || '192.168.1.53:3000';
+
+            callback(config);
+        });
+    };
+
+    /**
+     * Save Configuration.
+     *
+     * Options:
+     *   - `data` {Object} is the data to save to the config file.
+     *   - `callback` {Function} is triggered on completion.
+     */
+
+    window.phonegap.app.config.save = function(data, callback) {
+        saveFile('config.json', data, function(e) {
+            callback();
+        });
+    };
+
+    /*!
+     * Configuration helper functions.
+     */
+
+    function readFile(filepath, callback) {
+        window.requestFileSystem(
+            LocalFileSystem.PERSISTENT,
+            0,
+            function(fileSystem) {
+                fileSystem.root.getFile(
+                    filepath,
+                    null,
+                    function gotFileEntry(fileEntry) {
+                        fileEntry.file(
+                            function gotFile(file){
+                                var reader = new FileReader();
+                                reader.onloadend = function(evt) {
+                                    // #72 - Fix WP8 loading of config.json
+                                    // On WP8, `evt.target.result` is returned as an object instead
+                                    // of a string. Since WP8 is using a newer version of the File API
+                                    // this may be a platform quirk or an API update.
+                                    var text = evt.target.result;
+                                    text = (typeof text === 'object') ? JSON.stringify(text) : text;
+                                    callback(null, text); // text is a string
+                                };
+                                reader.readAsText(file);
+                            },
+                            function(error) {
+                                callback(error);
+                            }
+                        );
+                    },
+                    function(error) {
+                        callback(error);
+                    }
+                );
+            },
+            function(error) {
+                callback(error);
+            }
+        );
+    }
+
+    function saveFile(filepath, data, callback) {
+        data = (typeof data === 'string') ? data : JSON.stringify(data);
+
+        window.requestFileSystem(
+            LocalFileSystem.PERSISTENT,
+            0,
+            function(fileSystem) {
+                fileSystem.root.getFile(
+                    filepath,
+                    { create: true, exclusive: false },
+                    function(fileEntry) {
+                        fileEntry.createWriter(
+                            function(writer) {
+                                writer.onwriteend = function(evt) {
+                                    callback();
+                                };
+                                writer.write(data);
+                            },
+                            function(e) {
+                                callback(e);
+                            }
+                        );
+                    },
+                    function(e) {
+                        callback(e);
+                    }
+                );
+            },
+            function(e) {
+                callback(e);
+            }
+        );
+    }
+
+    function parseAsJSON(text) {
+        try {
+            return JSON.parse(text);
+        } catch(e) {
+            return {};
+        }
+    }
+
+    /**
+     * Download, Extract, and Deploy App.
+     *
+     * Options:
+     *   - `options` {Object}
+     *     - `address` {String} is the server address.
+     */
+
+    window.phonegap.app.downloadZip = function(options) {
+        var uri, sync;
+        if (options.update) {
+            uri = encodeURI(options.address + '/__api__/update');
+            sync = ContentSync.sync({ src: uri, id: 'phonegapdevapp', type: 'merge', copyCordovaAssets: false });
+        } else {
+            uri = encodeURI(options.address + '/__api__/appzip');
+            sync = ContentSync.sync({ src: uri, id: 'phonegapdevapp', type: 'replace', copyCordovaAssets: true });
+        }
+
+        sync.on('complete', function(data){
+            window.location.reload();
+        });
+
+        sync.on('error', function(e){
+            if (options.onDownloadError) {
+                setTimeout(function() {
+                    options.onDownloadError(e);
+                }, 10);
+            }
+            console.log('download error', e.message);
+        });
+    };
+
+})();
+</script>
+<script type="text/javascript">//
+// Go to app's homepage on a three-finger tap.
+//
+(function() {
+
+    var currentTouches = {},
+        eventName = { touchstart: 'touchstart', touchend: 'touchend' };
+
+    if (window.navigator.msPointerEnabled) {
+        eventName = { touchstart: 'MSPointerDown', touchend: 'MSPointerUp' };
+    }
+
+    document.addEventListener(eventName.touchstart, function(evt) {
+        var touches = evt.touches || [evt],
+            touch;
+        for(var i = 0, l = touches.length; i < l; i++) {
+            touch = touches[i];
+            currentTouches[touch.identifier || touch.pointerId] = touch;
+        }
+    }, false);
+
+    document.addEventListener(eventName.touchend, function(evt) {
+        var touchCount = Object.keys(currentTouches).length;
+        currentTouches = {};
+        if (touchCount === 3) {
+            evt.preventDefault();
+            window.history.back(window.history.length);
+        }
+    }, false);
+
+})(window);
+</script>
+<script type="text/javascript">//
+// Push notification
+//
+(function() {
+
+    document.addEventListener('deviceready', function() {
+        var oldPushNotification;
+        if (window.PushNotification) {
+            oldPushNotification = window.PushNotification;
+            window.PushNotification.init = function(options) {
+                if (options.android) {
+                    options.android.senderID = "85075801930";
+                    options.android.icon = "pushicon";
+                    options.android.iconColor = "blue";
+                }
+                var pgdevPush = new oldPushNotification.PushNotification(options);
+                pgdevPush.on('registration', function(data) {
+                    console.log('Device Push ID: \n' + data.registrationId);
+                });
+                return pgdevPush;
+            };
+        }
+    });
+
+})(window);
+</script>
+<script type="text/javascript">//
+// Refresh the app on a four-finger tap.
+//
+(function() {
+
+    var currentTouches = {},
+        eventName = { touchstart: 'touchstart', touchend: 'touchend' };
+
+    if (window.navigator.msPointerEnabled) {
+        eventName = { touchstart: 'MSPointerDown', touchend: 'MSPointerUp' };
+    }
+
+    document.addEventListener(eventName.touchstart, function(evt) {
+        var touches = evt.touches || [evt],
+            touch;
+        for(var i = 0, l = touches.length; i < l; i++) {
+            touch = touches[i];
+            currentTouches[touch.identifier || touch.pointerId] = touch;
+        }
+    });
+
+    document.addEventListener(eventName.touchend, function(evt) {
+        var touchCount = Object.keys(currentTouches).length;
+        currentTouches = {};
+        if (touchCount === 4) {
+            evt.preventDefault();
+            window.location.reload(true);
+        }
+    }, false);
+
+})(window);
+</script>
+
+
+    <script type="text/javascript" src="js/index.js"></script>
+    <script type="text/javascript">
+        app.initialize();
+    </script>
+</body>
+
+</html>
